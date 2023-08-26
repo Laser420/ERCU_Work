@@ -15,6 +15,11 @@ pragma solidity ^0.8.19;
 //Deployment address: 0x46e4308121D3edc899C7f9C17601fd04516e19E9
 //Deployment address Recent: 0x3de0f1417c8d12106de083ac85d37a1f09675164
 
+//10000001089625498367 - required Stablebalance amount...
+//10000001734633753000
+//755671046776610556514 - normalDebt repay amount....
+//2000000000000000000000
+
 //To withdraw...need to call setPermission of this contract on the vault...from the user address
 //On vault, modifyPermission(thiscontractAddy, true);
 
@@ -174,6 +179,7 @@ abstract contract newPositionAction is IERC3156FlashBorrower, ICreditFlashBorrow
 
   }
 
+
   //Execute a withdrawal from a chosen vault.
   function executeWithdraw(address vault, address _asset, uint256 _amount) public
   {
@@ -260,7 +266,10 @@ abstract contract newPositionAction is IERC3156FlashBorrower, ICreditFlashBorrow
   function executeDelegate(address vault, uint256 _amount) public returns (uint256 sharesAmount)
   {
     return _delegateInternal(vault, _amount);
+    //Current issue....vault is ultimately trying to delegate credit from msg.sender,
+    //which is being send through as this contract making the call, not the caller
   }
+
 
   //Undelegate your credit from the vault...
   function executeUnDelegate(address vault, uint256 _amountOfShares, uint256[] calldata _prevQueuedEpochs) public
@@ -268,6 +277,71 @@ abstract contract newPositionAction is IERC3156FlashBorrower, ICreditFlashBorrow
   {
     return _undelegateInternal(vault, _amountOfShares, _prevQueuedEpochs);
   }
+
+
+      //Removed: onlyDelegatecall
+//Removed 2: made it public...
+//Made internal.
+    /// @notice Adds collateral and delegates credit to a vault
+    /// @param position The CDP Vault position
+    /// @param depositVault The CDP Vault to deposit collateral into
+    /// @param delegateVault The CDP Vault to delegate credit to
+    /// @param credit The amount of credit to delegate
+    /// @param collateralParams The collateral parameters
+    /// @param permitParams The permit parameters
+    function delegateOrDepositDelegate(
+        address _position,
+        address _depositVaultAddy,
+        address _delegateVaultAddy,
+        uint256 collateral,
+        uint256 creditToDelegate
+    ) public {
+        ICDPVault depositVault = ICDPVault(_depositVaultAddy);
+        IERC20 token = depositVault.token();
+
+        CollateralParams memory collatParams = CollateralParams ({
+            targetToken: address(token),
+            amount: collateral,
+            collateralizer: msg.sender, // address that will transfer the collateral or receive the collateral
+            auxSwap: emptySwap
+        });
+        
+        //If collateral value is input with the transaction...
+        //Deposit into the vault...then modify the position..then delegate to the other vault
+        if(collateral > 0)
+        {
+            uint256 amountOfcollateral = _deposit(_depositVaultAddy, collatParams, emptyPermitParams);
+            uint256 addNormalDebt = _debtToNormalDebt(_depositVaultAddy, _position, creditToDelegate);
+            ICDPVault(depositVault).modifyCollateralAndDebt(
+            _position,
+            address(this),
+            address(this),
+            toInt256(collateral),
+            toInt256(addNormalDebt)
+            );
+            _delegateInternal(_delegateVaultAddy, creditToDelegate);
+        }
+        //If collateral value is 0...
+        //Assume deposit vault has been deposited into
+        //Check the collateral value...
+        //Calculate the addNormalDebt
+        else if(collateral == 0) 
+        {
+            
+        }
+
+        /*
+        uint256 addNormalDebt = _debtToNormalDebt(depositVault, position, credit);
+        ICDPVault(depositVault).modifyCollateralAndDebt(
+            _position,
+            address(this),
+            address(this),
+            toInt256(collateral),
+            toInt256(addNormalDebt)
+        );
+        _delegateInternal(delegateVault, credit);
+        */
+    }
 
 
 /*////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -512,6 +586,7 @@ abstract contract newPositionAction is IERC3156FlashBorrower, ICreditFlashBorrow
     }
 
 //Removed: onlyDelegatecall
+//Removed 2: made it public...
 //Made internal.
     /// @notice Adds collateral and delegates credit to a vault
     /// @param position The CDP Vault position
@@ -527,7 +602,7 @@ abstract contract newPositionAction is IERC3156FlashBorrower, ICreditFlashBorrow
         uint256 credit,
         CollateralParams memory collateralParams,
         PermitParams memory permitParams
-    ) internal {
+    ) public {
         
         uint256 collateral = _deposit(depositVault, collateralParams, permitParams);
         uint256 addNormalDebt = _debtToNormalDebt(depositVault, position, credit);
@@ -540,6 +615,7 @@ abstract contract newPositionAction is IERC3156FlashBorrower, ICreditFlashBorrow
         );
         _delegateInternal(delegateVault, credit);
     }
+
 
 //Removed: onlyDelegatecall
 //Made internal.

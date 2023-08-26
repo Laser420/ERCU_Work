@@ -2,6 +2,7 @@
 Changes made:
 Added 'delegateCreditToPosition' to the contract and the interface.
 This basically delegates credit from and mints shares to an input address, rather than msg.sender.
+Added this line to the ICDPVault: "function delegateCreditToPosition(address position, uint256 creditAmount) external returns (uint256 sharesAmount);"
 */
 
 // SPDX-License-Identifier: MIT

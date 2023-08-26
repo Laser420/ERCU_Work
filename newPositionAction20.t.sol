@@ -132,7 +132,7 @@ contract newPositionAction20 is IntegrationTestBase {
         vm.label(address(positionAction), "positionAction");
     }
 
-    /*
+    /*Working but not relevant
     function test_deposit() public {
         uint256 depositAmount = 10_000 ether;
 
@@ -166,7 +166,7 @@ contract newPositionAction20 is IntegrationTestBase {
     }
     */
 
-    /*
+    /*Not fully working AND not relevant
     //Shares are incorrectly being sent to the positionAction contract...
     //Because it is the collateralizer and creditor in the modifyCollateral calls?
     function test_depositAndDelegate() public {
@@ -206,9 +206,8 @@ contract newPositionAction20 is IntegrationTestBase {
 
 
     //This is the sequence of calls that I want to occur...first a deposit..then delegate
-    //Depositing depositAmount
-    //Then modifyCollateral to set up the creditAmount as debt...
-    //Then try to delegate that creditAmount...using the call on the positionAction 
+    //Depositing depositAmount and delegating creditAmount
+    //This delegates calling the vault directly
     function test_depositDAI_then_delegate_DAI() public
     {
         uint256 depositAmount = 10_000 ether;
@@ -265,7 +264,9 @@ contract newPositionAction20 is IntegrationTestBase {
          console.log("%s %s %s","User has delegated:", shares , "shares.");
     }
 
-        function test_depositDAI_then_delegate_USDC() public
+    //Depositing depositAmount and delegating creditAmount
+    //This delegates calling the vault directly
+    function test_depositDAI_then_delegate_USDC() public
     {
         uint256 depositAmount = 10_000 ether;
         uint256 creditAmount = 5_000*1 ether;
@@ -321,7 +322,9 @@ contract newPositionAction20 is IntegrationTestBase {
          console.log("%s %s %s","User has delegated:", shares , "shares.");
     }
 
-
+    //This is the sequence of calls that I want to occur...
+    //However this uses calls based entirely on the newPositionAction20 contract I made
+    //This test calls the function assuming there has already been a deposit
     function test_depositDAI_then_delegate_DAI_PositionAction() public
     {
         uint256 depositAmount = 10_000 ether;
@@ -346,7 +349,7 @@ contract newPositionAction20 is IntegrationTestBase {
         console.log("%s: %s:%s", "Post Deposit collateral/debt:", collateralCurrent , normalDebtCurrent);
 
         cdm.modifyPermission(address(daiVault), true);
-        positionAction.delegateOrDepositDelegate(user, address(daiVault), address(daiVault), 0, creditAmount);
+        positionAction.delegateOrDepositDelegate(user, address(daiVault), address(daiVault), creditAmount);
         cdm.modifyPermission(address(daiVault), false);
         vm.stopPrank();
 
@@ -359,11 +362,45 @@ contract newPositionAction20 is IntegrationTestBase {
          console.log("%s %s %s","User has delegated:", shares , "shares.");
     }
 
-    //This is kind of calls that I want to occur...first a deposit..then delegate
-    //Depositing depositAmount
-    //Then modifyCollateral to set up the creditAmount as debt...
-    //Then try to delegate that creditAmount...using the call on the vault itself...
-    /*
+    function test_depositDAI_then_delegate_USDC_PositionAction() public
+    {
+        uint256 depositAmount = 10_000 ether;
+        uint256 creditAmount = 5_000*1 ether;
+
+        deal(address(DAI), user, depositAmount);
+
+        vm.startPrank(user);
+        DAI.approve(address(positionAction), depositAmount);
+
+        cdm.setPermissionAgent(address(positionAction), true);
+        
+        daiVault.modifyPermission(address(positionAction), true);
+
+        //Deposits into vault
+        //This might not work since the creditor and collateralizer might be fucking WRONG...
+        positionAction.executeDeposit(address(daiVault), address(DAI), depositAmount);
+
+        uint256 collateralCurrent;
+        uint256 normalDebtCurrent;
+        (collateralCurrent, normalDebtCurrent) = daiVault.positions(user);
+        console.log("%s: %s:%s", "Post Deposit collateral/debt:", collateralCurrent , normalDebtCurrent);
+
+        cdm.modifyPermission(address(usdcVault), true);
+        positionAction.delegateOrDepositDelegate(user, address(daiVault), address(usdcVault), creditAmount);
+        cdm.modifyPermission(address(usdcVault), false);
+        vm.stopPrank();
+
+        (uint256 collateral, uint256 normalDebt) = daiVault.positions(address(user));
+        uint256 shares = usdcVault.shares(address(user));
+
+        assertEq(collateral, depositAmount);
+        //assertEq(normalDebt, 0);
+        assertEq(shares, creditAmount); 
+         console.log("%s %s %s","User has delegated:", shares , "shares.");
+    }
+
+   
+    /*Not used/updated
     function test_deposit_then_delegate_Type2() public
     {
         uint256 depositAmount = 10_000 ether;
@@ -420,7 +457,7 @@ contract newPositionAction20 is IntegrationTestBase {
     }
     */
 
-    /*
+    /*Not used/updated
     function test_depositDAI_then_delegateDAI_Type3() public
     {
         uint256 depositAmount = 10_000 ether;

@@ -283,12 +283,11 @@ abstract contract newPositionAction is IERC3156FlashBorrower, ICreditFlashBorrow
 //Removed 2: made it public...
 //Made internal.
     /// @notice Adds collateral and delegates credit to a vault
-    /// @param position The CDP Vault position
-    /// @param depositVault The CDP Vault to deposit collateral into
-    /// @param delegateVault The CDP Vault to delegate credit to
-    /// @param credit The amount of credit to delegate
-    /// @param collateralParams The collateral parameters
-    /// @param permitParams The permit parameters
+    /// @param _position The CDP Vault position
+    /// @param _depositVaultAddy The CDP Vault to deposit collateral into
+    /// @param _delegateVaultAddy The CDP Vault to delegate credit to
+    /// @param collateral The amount of credit to delegate
+    /// @param creditToDelegate The collateral parameters
     function delegateOrDepositDelegate(
         address _position,
         address _depositVaultAddy,
@@ -309,17 +308,17 @@ abstract contract newPositionAction is IERC3156FlashBorrower, ICreditFlashBorrow
         //If collateral value is input with the transaction...
         //Deposit into the vault...then modify the position..then delegate to the other vault
         if(collateral > 0)
-        {
-            uint256 amountOfcollateral = _deposit(_depositVaultAddy, collatParams, emptyPermitParams);
+        { //uint256 amountOfcollateral =
+            _deposit(_depositVaultAddy, collatParams, emptyPermitParams);
             uint256 addNormalDebt = _debtToNormalDebt(_depositVaultAddy, _position, creditToDelegate);
             ICDPVault(depositVault).modifyCollateralAndDebt(
             _position,
-            address(this),
-            address(this),
+            _position,//address(this),
+            _position,//address(this),
             toInt256(collateral),
             toInt256(addNormalDebt)
             );
-            _delegateInternal(_delegateVaultAddy, creditToDelegate);
+            _delegateInternalToPosition(msg.sender, _delegateVaultAddy, creditToDelegate);
         }
         //If collateral value is 0...
         //Assume deposit vault has been deposited into
@@ -327,20 +326,18 @@ abstract contract newPositionAction is IERC3156FlashBorrower, ICreditFlashBorrow
         //Calculate the addNormalDebt
         else if(collateral == 0) 
         {
-            
-        }
-
-        /*
-        uint256 addNormalDebt = _debtToNormalDebt(depositVault, position, credit);
-        ICDPVault(depositVault).modifyCollateralAndDebt(
+            //Perform a check to ensure they aren't delegating more credit than they have...
+            //Ill fuckin...do it later I guess
+            uint256 addNormalDebt = _debtToNormalDebt(_depositVaultAddy, _position, creditToDelegate);
+            ICDPVault(depositVault).modifyCollateralAndDebt(
             _position,
-            address(this),
-            address(this),
-            toInt256(collateral),
+            _position,//address(this),
+            _position,//address(this),
+            toInt256(0),
             toInt256(addNormalDebt)
-        );
-        _delegateInternal(delegateVault, credit);
-        */
+            );
+             _delegateInternalToPosition(msg.sender, _delegateVaultAddy, creditToDelegate);
+        }
     }
 
 
@@ -501,6 +498,18 @@ abstract contract newPositionAction is IERC3156FlashBorrower, ICreditFlashBorrow
     function _delegateInternal(address vault, uint256 creditAmount) internal returns (uint256 sharesAmount) {
         cdm.modifyPermission(vault, true);
         sharesAmount = ICDPVault(vault).delegateCredit(creditAmount);
+        cdm.modifyPermission(vault, false);
+    }
+
+    // Was just public, NOT onlyDelegateCall
+//Made internal.
+    /// @notice Delegates credit to `vault`
+    /// @dev Wrapper function around CDPVault.delegateCredit()
+    /// @param creditAmount Amount of credit to delegate [wad]
+    /// @return sharesAmount Amount of shares issued [wad]
+    function _delegateInternalToPosition(address position, address vault, uint256 creditAmount) internal returns (uint256 sharesAmount) {
+        cdm.modifyPermission(vault, true);
+        sharesAmount = ICDPVault(vault).delegateCreditToPosition(position, creditAmount);
         cdm.modifyPermission(vault, false);
     }
 

@@ -286,48 +286,22 @@ abstract contract newPositionAction is IERC3156FlashBorrower, ICreditFlashBorrow
     /// @param _position The CDP Vault position
     /// @param _depositVaultAddy The CDP Vault to deposit collateral into
     /// @param _delegateVaultAddy The CDP Vault to delegate credit to
-    /// @param collateral The amount of credit to delegate
+
     /// @param creditToDelegate The collateral parameters
     function delegateOrDepositDelegate(
         address _position,
         address _depositVaultAddy,
         address _delegateVaultAddy,
-        uint256 collateral,
         uint256 creditToDelegate
     ) public {
         ICDPVault depositVault = ICDPVault(_depositVaultAddy);
         IERC20 token = depositVault.token();
 
-        CollateralParams memory collatParams = CollateralParams ({
-            targetToken: address(token),
-            amount: collateral,
-            collateralizer: msg.sender, // address that will transfer the collateral or receive the collateral
-            auxSwap: emptySwap
-        });
-        
-        //If collateral value is input with the transaction...
-        //Deposit into the vault...then modify the position..then delegate to the other vault
-        if(collateral > 0)
-        { //uint256 amountOfcollateral =
-            _deposit(_depositVaultAddy, collatParams, emptyPermitParams);
-            uint256 addNormalDebt = _debtToNormalDebt(_depositVaultAddy, _position, creditToDelegate);
-            ICDPVault(depositVault).modifyCollateralAndDebt(
-            _position,
-            _position,//address(this),
-            _position,//address(this),
-            toInt256(collateral),
-            toInt256(addNormalDebt)
-            );
-            _delegateInternalToPosition(msg.sender, _delegateVaultAddy, creditToDelegate);
-        }
-        //If collateral value is 0...
-        //Assume deposit vault has been deposited into
+        //Assuming right now deposit vault has been deposited into
         //Check the collateral value...
         //Calculate the addNormalDebt
-        else if(collateral == 0) 
-        {
-            //Perform a check to ensure they aren't delegating more credit than they have...
-            //Ill fuckin...do it later I guess
+        //Perform a check to ensure they aren't delegating more credit than they have...
+        //Ill fuckin...do it later I guess
             uint256 addNormalDebt = _debtToNormalDebt(_depositVaultAddy, _position, creditToDelegate);
             ICDPVault(depositVault).modifyCollateralAndDebt(
             _position,
@@ -337,7 +311,6 @@ abstract contract newPositionAction is IERC3156FlashBorrower, ICreditFlashBorrow
             toInt256(addNormalDebt)
             );
              _delegateInternalToPosition(msg.sender, _delegateVaultAddy, creditToDelegate);
-        }
     }
 
 

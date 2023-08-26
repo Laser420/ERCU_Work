@@ -1,6 +1,7 @@
-/*You might be wondering what I added to this vault (alongside its interface file):
-I added the function: delegateCreditToPosition
-
+/*
+Changes made:
+Added 'delegateCreditToPosition' to the contract and the interface.
+This basically delegates credit from and mints shares to an input address, rather than msg.sender.
 */
 
 // SPDX-License-Identifier: MIT

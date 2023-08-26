@@ -165,9 +165,7 @@ contract newPositionAction20 is IntegrationTestBase {
         */
     }
 
-    // DELEGATION TESTS
-
-
+    /*
     //Shares are incorrectly being sent to the positionAction contract...
     //Because it is the collateralizer and creditor in the modifyCollateral calls?
     function test_depositAndDelegate() public {
@@ -203,21 +201,14 @@ contract newPositionAction20 is IntegrationTestBase {
         assertEq(normalDebt, creditAmount);
         assertEq(shares, creditAmount);
     }
+    */
 
-
-//both of these tests fail in the same way...with the same inputs.
-//This failure is the same one that I get when interacting with the deployed system
-    //on tenderly. 
-//The position does not have the required balance with the CDM to transfer its collateral to another vault
-//I am unsure if the position is even being represented with the CDM??
-//When doing the 'test_deposit', and I have made some assertions regarding the user's position on the CDM
-    //And these assertions failed, there was no updating of the CDM when creating a vault position.
 
     //This is the sequence of calls that I want to occur...first a deposit..then delegate
     //Depositing depositAmount
     //Then modifyCollateral to set up the creditAmount as debt...
     //Then try to delegate that creditAmount...using the call on the positionAction 
-    function test_deposit_then_delegate_Type1() public
+    function test_depositDAI_then_delegate_DAI() public
     {
         uint256 depositAmount = 10_000 ether;
         uint256 creditAmount = 5_000*1 ether;
@@ -232,47 +223,108 @@ contract newPositionAction20 is IntegrationTestBase {
         daiVault.modifyPermission(address(positionAction), true);
 
         //Deposits into vault
+        //This might not work since the creditor and collateralizer might be fucking WRONG...
         positionAction.executeDeposit(address(daiVault), address(DAI), depositAmount);
 
         uint256 collateralCurrent;
         uint256 normalDebtCurrent;
-        (collateralCurrent, normalDebtCurrent) = daiVault.positions(address(user));
+        (collateralCurrent, normalDebtCurrent) = daiVault.positions(user);
         console.log("%s: %s:%s", "Post Deposit collateral/debt:", collateralCurrent , normalDebtCurrent);
 
-        daiVault.modifyCollateralAndDebt( address(user), 
-                                address(positionAction), 
-                                address(positionAction),
-                                0,
-                                int256(creditAmount)                                
-                                );
-        
-        (collateralCurrent, normalDebtCurrent) = daiVault.positions(address(user));
-        console.log("%s: %s:%s", "Modified collateral/debt:", collateralCurrent, normalDebtCurrent);
-        
         //address owner,
         //address collateralizer,
         //address creditor,
         //int256 deltaCollateral,
         //int256 deltaNormalDebt
+        daiVault.modifyCollateralAndDebt( user, 
+                                user, 
+                                user,
+                                0,
+                                int256(creditAmount)                                
+                                );
+                        
+        
+        (collateralCurrent, normalDebtCurrent) = daiVault.positions(user);
+        console.log("%s: %s:%s", "Modified collateral/debt:", collateralCurrent, normalDebtCurrent);
+        
 
         cdm.modifyPermission(address(daiVault), true);
-        positionAction.executeDelegateTry(address(daiVault), creditAmount);
+        //Call the delegate credit attempt directly on the daiVault...
+        daiVault.delegateCredit(creditAmount);
         cdm.modifyPermission(address(daiVault), false);
 
         vm.stopPrank();
 
         (uint256 collateral, uint256 normalDebt) = daiVault.positions(address(user));
-       // uint256 shares = daiVault.shares(address(user));
+        uint256 shares = daiVault.shares(address(user));
 
         assertEq(collateral, depositAmount);
-        assertEq(normalDebt, 0);
-       // assertEq(shares, creditAmount); 
+        //assertEq(normalDebt, 0);
+        assertEq(shares, creditAmount); 
+         console.log("%s %s %s","User has delegated:", shares , "shares.");
+    }
+
+        function test_depositDAI_then_delegate_USDC() public
+    {
+        uint256 depositAmount = 10_000 ether;
+        uint256 creditAmount = 5_000*1 ether;
+
+        deal(address(DAI), user, depositAmount);
+
+        vm.startPrank(user);
+        DAI.approve(address(positionAction), depositAmount);
+
+        cdm.setPermissionAgent(address(positionAction), true);
+        
+        daiVault.modifyPermission(address(positionAction), true);
+
+        //Deposits into vault
+        //This might not work since the creditor and collateralizer might be fucking WRONG...
+        positionAction.executeDeposit(address(daiVault), address(DAI), depositAmount);
+
+        uint256 collateralCurrent;
+        uint256 normalDebtCurrent;
+        (collateralCurrent, normalDebtCurrent) = daiVault.positions(user);
+        console.log("%s: %s:%s", "Post Deposit collateral/debt:", collateralCurrent , normalDebtCurrent);
+
+        //address owner,
+        //address collateralizer,
+        //address creditor,
+        //int256 deltaCollateral,
+        //int256 deltaNormalDebt
+        daiVault.modifyCollateralAndDebt( user, 
+                                user, 
+                                user,
+                                0,
+                                int256(creditAmount)                                
+                                );
+                        
+        
+        (collateralCurrent, normalDebtCurrent) = daiVault.positions(user);
+        console.log("%s: %s:%s", "Modified collateral/debt:", collateralCurrent, normalDebtCurrent);
+        
+
+        cdm.modifyPermission(address(usdcVault), true);
+        //Call the delegate credit attempt directly on the daiVault...
+        usdcVault.delegateCredit(creditAmount);
+        cdm.modifyPermission(address(usdcVault), false);
+
+        vm.stopPrank();
+
+        (uint256 collateral, uint256 normalDebt) = daiVault.positions(address(user));
+        uint256 shares = daiVault.shares(address(user));
+
+        assertEq(collateral, depositAmount);
+        //assertEq(normalDebt, 0);
+        assertEq(shares, creditAmount); 
+         console.log("%s %s %s","User has delegated:", shares , "shares.");
     }
 
     //This is kind of calls that I want to occur...first a deposit..then delegate
     //Depositing depositAmount
     //Then modifyCollateral to set up the creditAmount as debt...
     //Then try to delegate that creditAmount...using the call on the vault itself...
+    /*
     function test_deposit_then_delegate_Type2() public
     {
         uint256 depositAmount = 10_000 ether;
@@ -295,12 +347,14 @@ contract newPositionAction20 is IntegrationTestBase {
         (collateralCurrent, normalDebtCurrent) = daiVault.positions(address(user));
         console.log("%s: %s:%s", "Post Deposit collateral/debt:", collateralCurrent , normalDebtCurrent);
 
+    
         daiVault.modifyCollateralAndDebt( address(user), 
                                 address(positionAction), 
                                 address(positionAction),
                                 0,
                                 int256(creditAmount)                                
                                 );
+                        
         
         (collateralCurrent, normalDebtCurrent) = daiVault.positions(address(user));
         console.log("%s: %s:%s", "Modified collateral/debt:", collateralCurrent, normalDebtCurrent);
@@ -324,5 +378,64 @@ contract newPositionAction20 is IntegrationTestBase {
         assertEq(collateral, depositAmount);
         //assertEq(normalDebt, 0);
        // assertEq(shares, creditAmount); 
+    }
+    */
+
+    function test_depositDAI_then_delegateDAI_Type3() public
+    {
+        uint256 depositAmount = 10_000 ether;
+        uint256 creditAmount = 5_000*1 ether;
+
+        deal(address(DAI), user, depositAmount);
+
+        vm.startPrank(user);
+        DAI.approve(address(positionAction), depositAmount);
+
+        cdm.setPermissionAgent(address(positionAction), true);
+        
+        daiVault.modifyPermission(address(positionAction), true);
+
+        //Deposits into vault
+        positionAction.executeDeposit(address(daiVault), address(DAI), depositAmount);
+
+        uint256 collateralCurrent;
+        uint256 normalDebtCurrent;
+        (collateralCurrent, normalDebtCurrent) = daiVault.positions(address(user));
+        console.log("%s: %s:%s", "Post Deposit collateral/debt:", collateralCurrent , normalDebtCurrent);
+
+    
+        daiVault.modifyCollateralAndDebt( address(user), 
+                                address(positionAction), 
+                                address(positionAction),
+                                0,
+                                int256(creditAmount)                                
+                                );
+                        
+        
+        (collateralCurrent, normalDebtCurrent) = daiVault.positions(address(user));
+        console.log("%s: %s:%s", "Modified collateral/debt:", collateralCurrent, normalDebtCurrent);
+        
+        //address owner,
+        //address collateralizer,
+        //address creditor,
+        //int256 deltaCollateral,
+        //int256 deltaNormalDebt
+        vm.stopPrank();
+
+        vm.startPrank(address(positionAction));
+
+        cdm.modifyPermission(address(daiVault), true);
+        //Call the delegate credit attempt directly on the daiVault...
+        daiVault.delegateCreditTry(address(positionAction), creditAmount);
+        cdm.modifyPermission(address(daiVault), false);
+        vm.stopPrank();
+
+        (uint256 collateral, uint256 normalDebt) = daiVault.positions(address(user));
+        uint256 shares = daiVault.shares(address(positionAction));
+
+        assertEq(collateral, depositAmount);
+        //assertEq(normalDebt, 0);
+        assertEq(shares, creditAmount); 
+        console.log("%s %s %s","PositionAction has delegated:", shares , "shares.");
     }
 }

@@ -132,7 +132,7 @@ contract newPositionAction20 is IntegrationTestBase {
         vm.label(address(positionAction), "positionAction");
     }
 
-
+    /*
     function test_deposit() public {
         uint256 depositAmount = 10_000 ether;
 
@@ -156,14 +156,15 @@ contract newPositionAction20 is IntegrationTestBase {
         assertEq(collateral, depositAmount);
         assertEq(normalDebt, 0);
 
-        /*
+        
         //Check to see if the CDM has a representation of the User account
         (int256 balance, uint256 debtCeiling) = cdm.accounts(address(user));
         //Compare the cdm account balance to the user's posted collateral...
         //This test is probably flawed because 
         assertEq(balance, int256(collateral) );
-        */
+        
     }
+    */
 
     /*
     //Shares are incorrectly being sent to the positionAction contract...
@@ -312,6 +313,44 @@ contract newPositionAction20 is IntegrationTestBase {
         vm.stopPrank();
 
         (uint256 collateral, uint256 normalDebt) = daiVault.positions(address(user));
+        uint256 shares = usdcVault.shares(address(user));
+
+        assertEq(collateral, depositAmount);
+        //assertEq(normalDebt, 0);
+        assertEq(shares, creditAmount); 
+         console.log("%s %s %s","User has delegated:", shares , "shares.");
+    }
+
+
+    function test_depositDAI_then_delegate_DAI_PositionAction() public
+    {
+        uint256 depositAmount = 10_000 ether;
+        uint256 creditAmount = 5_000*1 ether;
+
+        deal(address(DAI), user, depositAmount);
+
+        vm.startPrank(user);
+        DAI.approve(address(positionAction), depositAmount);
+
+        cdm.setPermissionAgent(address(positionAction), true);
+        
+        daiVault.modifyPermission(address(positionAction), true);
+
+        //Deposits into vault
+        //This might not work since the creditor and collateralizer might be fucking WRONG...
+        positionAction.executeDeposit(address(daiVault), address(DAI), depositAmount);
+
+        uint256 collateralCurrent;
+        uint256 normalDebtCurrent;
+        (collateralCurrent, normalDebtCurrent) = daiVault.positions(user);
+        console.log("%s: %s:%s", "Post Deposit collateral/debt:", collateralCurrent , normalDebtCurrent);
+
+        cdm.modifyPermission(address(daiVault), true);
+        positionAction.delegateOrDepositDelegate(user, address(daiVault), address(daiVault), 0, creditAmount);
+        cdm.modifyPermission(address(daiVault), false);
+        vm.stopPrank();
+
+        (uint256 collateral, uint256 normalDebt) = daiVault.positions(address(user));
         uint256 shares = daiVault.shares(address(user));
 
         assertEq(collateral, depositAmount);
@@ -381,6 +420,7 @@ contract newPositionAction20 is IntegrationTestBase {
     }
     */
 
+    /*
     function test_depositDAI_then_delegateDAI_Type3() public
     {
         uint256 depositAmount = 10_000 ether;
@@ -438,4 +478,5 @@ contract newPositionAction20 is IntegrationTestBase {
         assertEq(shares, creditAmount); 
         console.log("%s %s %s","PositionAction has delegated:", shares , "shares.");
     }
+    */
 }

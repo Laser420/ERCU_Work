@@ -1,0 +1,51 @@
+//Deployment of the 'CDPVault_Deployer' contract and other CDPVault related contracts fail with weird errors (not easily researched) when added to the CDPVault and ICDPVault
+//For whatever reason...adding this type of function to the CDPVault messes with deployment. 
+
+
+  /// @notice Claims the undelegated amount of credit. If the claim has not been fixed within the timeout then the
+    /// resulting credit claim will be 0 (it will not revert).
+    /// @dev The undelegated amount of credit can be claimed after the epoch fix delay has passed
+    /// @param claimForEpoch Epoch at which the undelegation was initiated
+    /// @return creditAmount Amount of credit undelegated [wad]
+    function claimUndelegatedCreditToPosition(address position, uint256 claimForEpoch) external returns (uint256 creditAmount) {
+
+        uint256 currentEpoch = getCurrentEpoch();
+        unchecked {
+            if (currentEpoch < claimForEpoch + EPOCH_FIX_DELAY)
+                revert CDPVault__claimUndelegatedCredit_epochNotClaimable();
+        }
+
+        // fix all claims for all non stale epochs
+        (,,,, Epoch memory epochCache) = _fixUndelegationClaims(claimForEpoch);
+
+        // if epochCache does not contain claimForEpoch, load from storage
+        if (epochCache.totalSharesQueued == 0 && epochCache.claimRatio == 0 && epochCache.totalCreditWithheld == 0)
+            epochCache = epochs[claimForEpoch];
+        
+        // if epoch is not fixed, then revert
+        if (epochCache.totalSharesQueued != 0 && epochCache.claimRatio == 0)
+            revert CDPVault__claimUndelegatedCredit_epochNotFixed();
+
+        // update shares by the claim ratio
+        uint256 shareAmount = sharesQueuedByEpoch[claimForEpoch][position];
+        uint256 adjShareAmount = wmul(shareAmount, epochCache.claimRatio);
+        // remove the shares from the queue
+        delete sharesQueuedByEpoch[claimForEpoch][position];
+        // refund shares that couldn't be satisfied with the credit claim (amount is at most equal to the shareAmount)
+        // totalShares was already updated in _fixUndelegationClaims
+        shares[position] += shareAmount - adjShareAmount;
+        shareAmount = adjShareAmount;
+
+        // calculate the claimable amount of credit to undelegate for the delegator and transfer it to them
+        // claimUndelegatedCredit assumes that shares are queued for the epoch (epochCache.totalSharesQueued != 0)
+        creditAmount = epochCache.totalCreditClaimable * shareAmount / epochCache.totalSharesQueued;
+        cdm.modifyBalance(creditWithholder, position, creditAmount);
+
+        // subtract claimed shares from the total shares queued by epoch
+        epochCache.totalSharesQueued -= shareAmount;
+        epochCache.totalCreditClaimable -= creditAmount;
+        epochs[claimForEpoch] = epochCache;
+        totalCreditClaimable -= creditAmount;
+        
+        emit ClaimUndelegatedCredit(position, shareAmount, creditAmount);
+    }
